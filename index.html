@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Expense Log</title>
+<link rel="icon" type="image/png" href="Favicon.png">
+<style>
+  :root{
+    --bg:#14171B;
+    --surface:#1E2227;
+    --surface-2:#262B31;
+    --ink:#F2F0EA;
+    --muted:#8A8F98;
+    --accent:#E8B04B;
+    --accent-ink:#14171B;
+    --border:#2E333A;
+    --error:#E2664D;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0; padding:0; background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .wrap{
+    max-width:420px; margin:0 auto; min-height:100dvh;
+    display:flex; flex-direction:column; padding:26px 18px 32px;
+  }
+  header{ margin-bottom:22px; }
+  header h1{
+    font-size:21px; font-weight:700; margin:0 0 4px; letter-spacing:-0.01em;
+  }
+  header p{ margin:0; font-size:13px; color:var(--muted); }
+
+  .field{ margin-bottom:14px; }
+  .field label{
+    display:block; font-size:12.5px; color:var(--muted); margin-bottom:7px;
+  }
+
+  .date-field{
+    width:100%; padding:14px; border:1px solid var(--border); border-radius:10px;
+    background:var(--surface); color:var(--ink); font-size:16px; font-variant-numeric:tabular-nums;
+    cursor:pointer; user-select:none;
+  }
+  .date-field:active{ border-color:var(--accent); }
+
+  input[type="text"]{
+    width:100%; padding:14px; border:1px solid var(--border); border-radius:10px;
+    background:var(--surface); color:var(--ink); font-size:16px; font-family:inherit;
+  }
+  input[type="text"]:focus{
+    outline:none; border-color:var(--accent);
+  }
+  input::placeholder{ color:#5C6169; }
+
+  .amount-block{ padding-top:6px; }
+  .amount-row{
+    display:flex; align-items:baseline; justify-content:center; gap:4px;
+    background:var(--surface); border:1px solid var(--border); border-radius:10px;
+    padding:10px 14px; transition:border-color .12s;
+  }
+  .amount-row:focus-within{ border-color:var(--accent); }
+  .currency{ font-size:24px; font-weight:600; color:var(--muted); }
+  #amount{
+    border:none; outline:none; background:transparent;
+    font-size:42px; font-weight:700; color:var(--ink);
+    width:100%; text-align:center; font-variant-numeric:tabular-nums; font-family:inherit;
+  }
+  #amount::placeholder{ color:#454A51; }
+
+  .submit-btn{
+    margin-top:12px; width:100%; padding:16px; border:none; border-radius:12px;
+    background:var(--accent); color:var(--accent-ink); font-size:16px; font-weight:700;
+    letter-spacing:0.01em; cursor:pointer; transition:transform .06s, opacity .12s;
+  }
+  .submit-btn:active{ transform:scale(0.98); opacity:0.92; }
+
+  .toast{
+    position:fixed; left:50%; bottom:24px; transform:translateX(-50%) translateY(20px);
+    background:var(--surface-2); color:var(--ink); border:1px solid var(--border);
+    padding:11px 18px; border-radius:10px; font-size:14px; opacity:0; pointer-events:none;
+    transition:opacity .18s, transform .18s; max-width:88%; text-align:center;
+  }
+  .toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+  .toast.error{ border-color:var(--error); color:var(--error); }
+
+  .last-entry{ margin-top:30px; padding-top:18px; border-top:1px dashed var(--border); }
+  .last-entry h2{ font-size:12.5px; color:var(--muted); margin:0 0 10px; font-weight:600; }
+  .last-card{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:14px; background:var(--surface); border-radius:10px;
+  }
+  .last-card .item{ font-size:15px; font-weight:600; }
+  .last-card .date{ font-size:12px; color:var(--muted); margin-top:2px; }
+  .last-card .amt{ font-size:18px; font-weight:700; font-variant-numeric:tabular-nums; }
+  .last-card .amt.pending{ color:var(--muted); }
+  .sync-dot{
+    display:inline-block; width:6px; height:6px; border-radius:50%;
+    background:var(--muted); margin-right:5px;
+  }
+  .empty{ font-size:13px; color:var(--muted); padding:2px 0; }
+
+  .view-all-btn{
+    margin-top:16px; width:100%; padding:13px; border-radius:10px;
+    background:transparent; border:1px solid var(--border); color:var(--ink);
+    font-size:14px; font-weight:600; cursor:pointer;
+  }
+  .view-all-btn:active{ background:var(--surface); }
+
+  /* Bottom sheet modal */
+  .sheet-backdrop{
+    position:fixed; inset:0; background:rgba(0,0,0,0.55);
+    opacity:0; pointer-events:none; transition:opacity .18s; z-index:10;
+  }
+  .sheet-backdrop.show{ opacity:1; pointer-events:auto; }
+  .sheet{
+    position:fixed; left:0; right:0; bottom:0; max-width:420px; margin:0 auto;
+    background:var(--surface-2); border-radius:18px 18px 0 0; border:1px solid var(--border);
+    border-bottom:none; padding:18px 18px 24px; max-height:75vh; display:flex; flex-direction:column;
+    transform:translateY(100%); transition:transform .22s ease; z-index:11;
+  }
+  .sheet.show{ transform:translateY(0); }
+  .sheet-head{
+    display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;
+  }
+  .sheet-head h3{ font-size:15px; margin:0; font-weight:700; }
+  .sheet-close{
+    background:var(--surface); border:1px solid var(--border); color:var(--ink);
+    width:30px; height:30px; border-radius:50%; font-size:15px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .sheet-list{ overflow-y:auto; }
+  .sheet-row{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:11px 0; border-bottom:1px solid var(--border); font-size:14px;
+  }
+  .sheet-row:last-child{ border-bottom:none; }
+  .sheet-row .date{ font-size:11.5px; color:var(--muted); margin-top:2px; }
+  .sheet-row .amt{ font-weight:700; font-variant-numeric:tabular-nums; }
+  .sheet-state{ font-size:13.5px; color:var(--muted); padding:20px 0; text-align:center; }
+
+  .cal-nav{ display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
+  .cal-nav button{
+    background:var(--surface); border:1px solid var(--border); color:var(--ink);
+    width:34px; height:34px; border-radius:8px; font-size:16px; cursor:pointer;
+  }
+  .cal-month-label{ font-size:14px; font-weight:700; }
+  .cal-weekdays{
+    display:grid; grid-template-columns:repeat(7,1fr); text-align:center;
+    font-size:11px; color:var(--muted); margin-bottom:8px;
+  }
+  .cal-days{ display:grid; grid-template-columns:repeat(7,1fr); gap:4px; }
+  .cal-day{
+    aspect-ratio:1; display:flex; align-items:center; justify-content:center;
+    border-radius:8px; font-size:14px; cursor:pointer;
+  }
+  .cal-day.empty{ cursor:default; }
+  .cal-day:not(.empty):active{ background:var(--surface); }
+  .cal-day.selected{ background:var(--accent); color:var(--accent-ink); font-weight:700; }
+  .cal-today-btn{ margin-top:16px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Expense Log</h1>
+    <p>Log it before you forget the amount.</p>
+  </header>
+
+  <form id="expenseForm">
+    <div class="field">
+      <label for="dateField">Date</label>
+      <div class="date-field" id="dateField" tabindex="0"></div>
+    </div>
+
+    <div class="field">
+      <label for="item">Item</label>
+      <input type="text" id="item" placeholder="e.g. Auto fare, printer paper" required autocomplete="off">
+    </div>
+
+    <div class="field amount-block">
+      <label for="amount">Amount (₹)</label>
+      <div class="amount-row">
+        <span class="currency">₹</span>
+        <input type="number" id="amount" inputmode="decimal" placeholder="0" required min="0" step="0.01">
+      </div>
+    </div>
+
+    <button type="submit" class="submit-btn" id="submitBtn">Save expense</button>
+  </form>
+
+  <div class="last-entry">
+    <h2>Last entry</h2>
+    <div id="lastEntry"><div class="empty">No entries yet on this device.</div></div>
+  </div>
+
+  <button type="button" class="view-all-btn" id="viewAllBtn">View all entries</button>
+</div>
+
+<div class="sheet-backdrop" id="sheetBackdrop"></div>
+<div class="sheet" id="sheet">
+  <div class="sheet-head">
+    <h3>All entries</h3>
+    <button class="sheet-close" id="sheetClose">✕</button>
+  </div>
+  <div class="sheet-list" id="sheetList">
+    <div class="sheet-state">Loading…</div>
+  </div>
+</div>
+
+<div class="sheet" id="dateSheet">
+  <div class="sheet-head">
+    <h3>Select date</h3>
+    <button class="sheet-close" id="dateSheetClose">✕</button>
+  </div>
+  <div class="cal-nav">
+    <button type="button" id="calPrev">‹</button>
+    <div class="cal-month-label" id="calMonthLabel"></div>
+    <button type="button" id="calNext">›</button>
+  </div>
+  <div class="cal-weekdays">
+    <div>S</div><div>M</div><div>T</div><div>W</div><div>T</div><div>F</div><div>S</div>
+  </div>
+  <div class="cal-days" id="calDays"></div>
+  <button type="button" class="view-all-btn cal-today-btn" id="calToday">Today</button>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  // ⚠️ REPLACE with your deployed Apps Script Web App URL (see setup steps)
+  var SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw1NMthOdgBoTBKNb2XKf7KeCpiHSsLPPQU7KhNOC-57uhL3gVftqhcF22neQjt2yoTTw/exec";
+
+  var form = document.getElementById('expenseForm');
+  var dateFieldEl = document.getElementById('dateField');
+  var itemEl = document.getElementById('item');
+  var amountEl = document.getElementById('amount');
+  var toastEl = document.getElementById('toast');
+  var lastEntryEl = document.getElementById('lastEntry');
+  var viewAllBtn = document.getElementById('viewAllBtn');
+  var sheetEl = document.getElementById('sheet');
+  var sheetBackdropEl = document.getElementById('sheetBackdrop');
+  var sheetListEl = document.getElementById('sheetList');
+  var sheetCloseEl = document.getElementById('sheetClose');
+  var dateSheetEl = document.getElementById('dateSheet');
+  var dateSheetCloseEl = document.getElementById('dateSheetClose');
+  var calPrevEl = document.getElementById('calPrev');
+  var calNextEl = document.getElementById('calNext');
+  var calMonthLabelEl = document.getElementById('calMonthLabel');
+  var calDaysEl = document.getElementById('calDays');
+  var calTodayEl = document.getElementById('calToday');
+
+  var monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  var selectedDate = new Date();   // the date the form will submit
+  var viewDate = new Date();       // month currently shown in the calendar
+
+  function pad2(n){ return n < 10 ? '0' + n : '' + n; }
+  function formatDMY(d){ return pad2(d.getDate()) + '/' + pad2(d.getMonth() + 1) + '/' + d.getFullYear(); }
+  function sameDay(a, b){ return a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate(); }
+
+  function setSelectedDate(d){
+    selectedDate = d;
+    dateFieldEl.textContent = formatDMY(selectedDate);
+  }
+  setSelectedDate(new Date());
+
+  function renderCalendar(){
+    var y = viewDate.getFullYear(), m = viewDate.getMonth();
+    calMonthLabelEl.textContent = monthNames[m] + ' ' + y;
+    var firstDay = new Date(y, m, 1).getDay();
+    var daysInMonth = new Date(y, m + 1, 0).getDate();
+    var html = '';
+    for(var i = 0; i < firstDay; i++){ html += '<div class="cal-day empty"></div>'; }
+    for(var day = 1; day <= daysInMonth; day++){
+      var thisDate = new Date(y, m, day);
+      var cls = 'cal-day' + (sameDay(thisDate, selectedDate) ? ' selected' : '');
+      html += '<div class="' + cls + '" data-day="' + day + '">' + day + '</div>';
+    }
+    calDaysEl.innerHTML = html;
+  }
+
+  calDaysEl.addEventListener('click', function(e){
+    var cell = e.target.closest('.cal-day:not(.empty)');
+    if(!cell) return;
+    var day = parseInt(cell.dataset.day, 10);
+    setSelectedDate(new Date(viewDate.getFullYear(), viewDate.getMonth(), day));
+    closeAllSheets();
+  });
+  calPrevEl.addEventListener('click', function(){
+    viewDate.setMonth(viewDate.getMonth() - 1);
+    viewDate = new Date(viewDate);
+    renderCalendar();
+  });
+  calNextEl.addEventListener('click', function(){
+    viewDate.setMonth(viewDate.getMonth() + 1);
+    viewDate = new Date(viewDate);
+    renderCalendar();
+  });
+  calTodayEl.addEventListener('click', function(){
+    setSelectedDate(new Date());
+    viewDate = new Date();
+    renderCalendar();
+    closeAllSheets();
+  });
+
+  dateFieldEl.addEventListener('click', function(){
+    viewDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
+    renderCalendar();
+    openSheet(dateSheetEl);
+  });
+
+  function showToast(msg, isError){
+    toastEl.textContent = msg;
+    toastEl.className = 'toast show' + (isError ? ' error' : '');
+    setTimeout(function(){ toastEl.classList.remove('show'); }, 2200);
+  }
+
+  function renderLast(entry){
+    if(!entry){
+      lastEntryEl.innerHTML = '<div class="empty">No entries yet on this device.</div>';
+      return;
+    }
+    lastEntryEl.innerHTML =
+      '<div class="last-card">' +
+        '<div><div class="item">' + entry.item + '</div><div class="date">' + entry.date + '</div></div>' +
+        '<div class="amt ' + (entry.pending ? 'pending' : '') + '">' +
+          (entry.pending ? '<span class="sync-dot"></span>' : '') +
+          '₹' + entry.amount +
+        '</div>' +
+      '</div>';
+  }
+
+  function saveLast(entry){
+    localStorage.setItem('lastExpense', JSON.stringify(entry));
+    renderLast(entry);
+  }
+
+  function markSynced(clientId){
+    var entry = JSON.parse(localStorage.getItem('lastExpense') || 'null');
+    if(entry && entry.clientId === clientId){
+      // Don't just flip "pending" off locally — pull the row Sheets
+      // actually has, so what's shown always matches the Sheet.
+      reconcileLastFromSheet();
+    }
+  }
+
+  function reconcileLastFromSheet(){
+    if(SCRIPT_URL.indexOf('PASTE_YOUR') !== -1) return;
+    fetch(SCRIPT_URL + '?latest=1')
+      .then(function(res){ return res.json(); })
+      .then(function(data){
+        if(data.status === 'success' && data.entry){
+          saveLast({
+            date: data.entry.date,
+            item: data.entry.item,
+            amount: data.entry.amount,
+            pending: false
+          });
+        }
+      })
+      .catch(function(){ /* keep showing the local copy if this fails */ });
+  }
+
+  renderLast(JSON.parse(localStorage.getItem('lastExpense') || 'null'));
+  reconcileLastFromSheet(); // confirm against the Sheet as soon as the page opens
+
+  form.addEventListener('submit', function(e){
+    e.preventDefault();
+
+    var payload = {
+      date: formatDMY(selectedDate),      // DD/MM/YYYY — the only format used anywhere
+      item: itemEl.value.trim(),
+      amount: amountEl.value
+    };
+    var clientId = Date.now() + '-' + Math.random();
+
+    saveLast({
+      clientId: clientId,
+      date: payload.date,
+      item: payload.item,
+      amount: payload.amount,
+      pending: true
+    });
+
+    var amountVal = amountEl.value;
+    form.reset();
+    setSelectedDate(new Date());
+    itemEl.focus();
+
+    showToast('₹' + amountVal + ' saved');
+
+    if(SCRIPT_URL.indexOf('PASTE_YOUR') !== -1){
+      showToast('Set SCRIPT_URL in the code to enable saving to Sheet', true);
+      return;
+    }
+
+    fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(payload) })
+      .then(function(res){ return res.json(); })
+      .then(function(data){
+        if(data.status === 'success'){ markSynced(clientId); }
+        else { showToast('Sync failed — will retry', true); }
+      })
+      .catch(function(){
+        showToast('No internet — saved on device only', true);
+      });
+  });
+
+  // ---- Shared bottom-sheet open/close (used by both "view all" and the date picker) ----
+  var currentOpenSheet = null;
+  function openSheet(el){
+    if(currentOpenSheet) currentOpenSheet.classList.remove('show');
+    currentOpenSheet = el;
+    sheetBackdropEl.classList.add('show');
+    el.classList.add('show');
+  }
+  function closeAllSheets(){
+    if(currentOpenSheet) currentOpenSheet.classList.remove('show');
+    sheetBackdropEl.classList.remove('show');
+    currentOpenSheet = null;
+  }
+  sheetBackdropEl.addEventListener('click', closeAllSheets);
+
+  // ---- View all entries (loads from the Sheet only when opened) ----
+  viewAllBtn.addEventListener('click', function(){
+    openSheet(sheetEl);
+    loadAllEntries();
+  });
+  sheetCloseEl.addEventListener('click', closeAllSheets);
+  dateSheetCloseEl.addEventListener('click', closeAllSheets);
+
+  function loadAllEntries(){
+    sheetListEl.innerHTML = '<div class="sheet-state">Loading…</div>';
+
+    if(SCRIPT_URL.indexOf('PASTE_YOUR') !== -1){
+      sheetListEl.innerHTML = '<div class="sheet-state">Set SCRIPT_URL in the code first.</div>';
+      return;
+    }
+
+    fetch(SCRIPT_URL)
+      .then(function(res){ return res.json(); })
+      .then(function(data){
+        if(data.status !== 'success'){ throw new Error(data.message || 'error'); }
+        if(!data.entries || data.entries.length === 0){
+          sheetListEl.innerHTML = '<div class="sheet-state">No entries in the sheet yet.</div>';
+          return;
+        }
+        sheetListEl.innerHTML = data.entries.map(function(entry){
+          return '<div class="sheet-row">' +
+            '<div><div>' + entry.item + '</div><div class="date">' + entry.date + '</div></div>' +
+            '<div class="amt">₹' + entry.amount + '</div>' +
+          '</div>';
+        }).join('');
+      })
+      .catch(function(){
+        sheetListEl.innerHTML = '<div class="sheet-state">Couldn\'t load entries. Check your connection.</div>';
+      });
+  }
+</script>
+</body>
+</html>
